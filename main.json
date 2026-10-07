@@ -1,0 +1,368 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.48.1.52935",
+      "templateHash": "8660625170473968200"
+    }
+  },
+  "parameters": {
+    "resourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the resource group. It will be created if it does not exist."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags applied to all resources."
+      }
+    },
+    "appServicePlans": {
+      "type": "array",
+      "metadata": {
+        "description": "List of App Service plans: { name, sku, capacity?, kind? }."
+      }
+    },
+    "webApps": {
+      "type": "array",
+      "metadata": {
+        "description": "List of web apps: { name, planName, linuxFxVersion, ... }. Details are defined in the parameter files."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('appservices-{0}', uniqueString(subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))))]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "appServicePlans": {
+            "value": "[parameters('appServicePlans')]"
+          },
+          "webApps": {
+            "value": "[parameters('webApps')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "6398449505024620296"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object"
+            },
+            "appServicePlans": {
+              "type": "array"
+            },
+            "webApps": {
+              "type": "array"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "plans",
+                "count": "[length(parameters('appServicePlans'))]"
+              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('plan-{0}', parameters('appServicePlans')[copyIndex()].name)]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "name": {
+                    "value": "[parameters('appServicePlans')[copyIndex()].name]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "tags": {
+                    "value": "[parameters('tags')]"
+                  },
+                  "sku": {
+                    "value": "[parameters('appServicePlans')[copyIndex()].sku]"
+                  },
+                  "capacity": {
+                    "value": "[coalesce(tryGet(parameters('appServicePlans')[copyIndex()], 'capacity'), 1)]"
+                  },
+                  "kind": {
+                    "value": "[coalesce(tryGet(parameters('appServicePlans')[copyIndex()], 'kind'), 'linux')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.48.1.52935",
+                      "templateHash": "465798480648890191"
+                    }
+                  },
+                  "parameters": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "tags": {
+                      "type": "object"
+                    },
+                    "sku": {
+                      "type": "string"
+                    },
+                    "capacity": {
+                      "type": "int",
+                      "defaultValue": 1
+                    },
+                    "kind": {
+                      "type": "string",
+                      "defaultValue": "linux",
+                      "allowedValues": [
+                        "linux",
+                        "windows"
+                      ]
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Web/serverfarms",
+                      "apiVersion": "2023-12-01",
+                      "name": "[parameters('name')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "kind": "[parameters('kind')]",
+                      "sku": {
+                        "name": "[parameters('sku')]",
+                        "capacity": "[parameters('capacity')]"
+                      },
+                      "properties": {
+                        "reserved": "[equals(parameters('kind'), 'linux')]"
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "id": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.Web/serverfarms', parameters('name'))]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "copy": {
+                "name": "apps",
+                "count": "[length(parameters('webApps'))]"
+              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('app-{0}', parameters('webApps')[copyIndex()].name)]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "name": {
+                    "value": "[parameters('webApps')[copyIndex()].name]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "tags": {
+                    "value": "[parameters('tags')]"
+                  },
+                  "planId": {
+                    "value": "[resourceId('Microsoft.Web/serverfarms', parameters('webApps')[copyIndex()].planName)]"
+                  },
+                  "linuxFxVersion": {
+                    "value": "[parameters('webApps')[copyIndex()].linuxFxVersion]"
+                  },
+                  "httpsOnly": {
+                    "value": "[coalesce(tryGet(parameters('webApps')[copyIndex()], 'httpsOnly'), true())]"
+                  },
+                  "alwaysOn": {
+                    "value": "[coalesce(tryGet(parameters('webApps')[copyIndex()], 'alwaysOn'), true())]"
+                  },
+                  "healthCheckPath": {
+                    "value": "[coalesce(tryGet(parameters('webApps')[copyIndex()], 'healthCheckPath'), '')]"
+                  },
+                  "startupCommand": {
+                    "value": "[coalesce(tryGet(parameters('webApps')[copyIndex()], 'startupCommand'), '')]"
+                  },
+                  "appSettings": {
+                    "value": "[coalesce(tryGet(parameters('webApps')[copyIndex()], 'appSettings'), createObject())]"
+                  },
+                  "enableSystemIdentity": {
+                    "value": "[coalesce(tryGet(parameters('webApps')[copyIndex()], 'enableSystemIdentity'), false())]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.48.1.52935",
+                      "templateHash": "17484596595467328195"
+                    }
+                  },
+                  "parameters": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "tags": {
+                      "type": "object"
+                    },
+                    "planId": {
+                      "type": "string"
+                    },
+                    "linuxFxVersion": {
+                      "type": "string"
+                    },
+                    "httpsOnly": {
+                      "type": "bool",
+                      "defaultValue": true
+                    },
+                    "alwaysOn": {
+                      "type": "bool",
+                      "defaultValue": true
+                    },
+                    "healthCheckPath": {
+                      "type": "string",
+                      "defaultValue": ""
+                    },
+                    "startupCommand": {
+                      "type": "string",
+                      "defaultValue": ""
+                    },
+                    "appSettings": {
+                      "type": "object",
+                      "defaultValue": {}
+                    },
+                    "enableSystemIdentity": {
+                      "type": "bool",
+                      "defaultValue": false
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Web/sites",
+                      "apiVersion": "2023-12-01",
+                      "name": "[parameters('name')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "kind": "app,linux",
+                      "identity": "[if(parameters('enableSystemIdentity'), createObject('type', 'SystemAssigned'), null())]",
+                      "properties": {
+                        "serverFarmId": "[parameters('planId')]",
+                        "httpsOnly": "[parameters('httpsOnly')]",
+                        "siteConfig": {
+                          "copy": [
+                            {
+                              "name": "appSettings",
+                              "count": "[length(items(parameters('appSettings')))]",
+                              "input": {
+                                "name": "[items(parameters('appSettings'))[copyIndex('appSettings')].key]",
+                                "value": "[string(items(parameters('appSettings'))[copyIndex('appSettings')].value)]"
+                              }
+                            }
+                          ],
+                          "linuxFxVersion": "[parameters('linuxFxVersion')]",
+                          "alwaysOn": "[parameters('alwaysOn')]",
+                          "ftpsState": "Disabled",
+                          "minTlsVersion": "1.2",
+                          "http20Enabled": true,
+                          "healthCheckPath": "[if(empty(parameters('healthCheckPath')), null(), parameters('healthCheckPath'))]",
+                          "appCommandLine": "[if(empty(parameters('startupCommand')), null(), parameters('startupCommand'))]"
+                        }
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "defaultHostName": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('name')), '2023-12-01').defaultHostName]"
+                    },
+                    "principalId": {
+                      "type": "string",
+                      "value": "[if(parameters('enableSystemIdentity'), reference(resourceId('Microsoft.Web/sites', parameters('name')), '2023-12-01', 'full').identity.principalId, '')]"
+                    }
+                  }
+                }
+              },
+              "dependsOn": [
+                "plans"
+              ]
+            }
+          ],
+          "outputs": {
+            "webAppHostNames": {
+              "type": "array",
+              "copy": {
+                "count": "[length(parameters('webApps'))]",
+                "input": "[reference(resourceId('Microsoft.Resources/deployments', format('app-{0}', parameters('webApps')[copyIndex()].name)), '2025-04-01').outputs.defaultHostName.value]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "webAppHostNames": {
+      "type": "array",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('appservices-{0}', uniqueString(subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))))), '2025-04-01').outputs.webAppHostNames.value]"
+    }
+  }
+}

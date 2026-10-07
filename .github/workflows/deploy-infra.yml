@@ -1,0 +1,66 @@
+name: Deploy App Services (Bicep)
+
+on:
+  pull_request:
+    paths: ['main.bicep', 'modules/**', 'parameters/**']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (parameters/<env>.bicepparam)'
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  id-token: write   # Required for OIDC login.
+  contents: read
+
+env:
+  DEPLOYMENT_LOCATION: centralindia   # Region for deployment metadata only.
+
+jobs:
+  validate-and-whatif:
+    runs-on: ubuntu-latest
+    env:
+      ENV_NAME: ${{ inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Bicep lint/build
+        run: az bicep build --file main.bicep
+
+      - name: What-if
+        run: |
+          az deployment sub what-if \
+            --name "appsvc-${{ github.run_number }}" \
+            --location "$DEPLOYMENT_LOCATION" \
+            --template-file main.bicep \
+            --parameters parameters/${ENV_NAME}.bicepparam
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate-and-whatif
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}   # GitHub Environment approvals, especially for production.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy
+        run: |
+          az deployment sub create \
+            --name "appsvc-${{ github.run_number }}" \
+            --location "$DEPLOYMENT_LOCATION" \
+            --template-file main.bicep \
+            --parameters parameters/${{ inputs.environment }}.bicepparam
